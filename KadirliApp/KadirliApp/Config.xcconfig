@@ -1,0 +1,10 @@
+// Config.xcconfig
+
+// 1. Secrets dosyasını dahil et (Başındaki # işareti önemlidir)
+#include? "Secrets.xcconfig"
+
+// 2. Değerleri Secrets dosyasından miras al (inherited)
+// Eğer Secrets dosyası yoksa veya boşsa, uygulama patlamasın diye varsayılan boş değer atanır.
+SUPABASE_URL = $(inherited)
+SUPABASE_KEY = $(inherited)
+// https://developer.apple.com/documentation/xcode/adding-a-build-configuration-file-to-your-project

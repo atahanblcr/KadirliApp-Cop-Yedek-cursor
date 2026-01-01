@@ -1,0 +1,370 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum AdType {
+  second_hand
+  zero_product
+  real_estate
+  vehicle
+  service
+  spare_parts
+}
+
+enum AnnouncementType {
+  electricity
+  water
+  institution
+  education
+  general
+}
+
+enum TaxiRequestStatus {
+  pending
+  accepted
+  in_progress
+  completed
+  cancelled
+}
+
+// ============================================
+// USER & AUTH MODELS
+// ============================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String?   @unique
+  phone         String?   @unique
+  fullName      String?   @map("full_name")
+  neighborhood  String?
+  
+  // Notification preferences (stored as JSONB in PostgreSQL)
+  notificationPreferences Json? @map("notification_preferences") @default("{\"news\":true,\"deaths\":true,\"pharmacy\":false,\"events\":true}")
+  
+  // Metadata fields (for Supabase compatibility)
+  appMetadata   Json?     @map("app_metadata")
+  userMetadata  Json?     @map("user_metadata")
+  
+  // Timestamps
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  ads           Ad[]
+  taxiRequests  TaxiRequest[]
+  guideItems    GuideItem[] @relation("TaxiDriver")
+  
+  @@map("users")
+}
+
+// ============================================
+// MARKETPLACE (ADS)
+// ============================================
+
+model Ad {
+  id            String    @id @default(uuid())
+  title         String
+  description   String?
+  type          AdType
+  contactInfo   String?   @map("contact_info")
+  price         String?
+  imageUrls     String[]  @map("image_urls") @default([])
+  expiresAt     DateTime? @map("expires_at")
+  isActive      Boolean   @default(true) @map("is_active")
+  isDeleted     Boolean   @default(false) @map("is_deleted")
+  
+  // Seller information
+  sellerName    String?   @map("seller_name")
+  latitude      Float?
+  longitude     Float?
+  
+  // Relations
+  userId        String?   @map("user_id")
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Timestamps
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  @@index([userId])
+  @@index([isActive, isDeleted])
+  @@index([type])
+  @@map("ads")
+}
+
+// ============================================
+// CITY GUIDE
+// ============================================
+
+model GuideCategory {
+  id        String      @id @default(uuid())
+  title     String
+  iconName  String?     @map("icon_name")
+  rank      Int         @default(0)
+  
+  // Relations
+  items     GuideItem[]
+  
+  // Timestamps
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  
+  @@index([rank])
+  @@map("guide_categories")
+}
+
+model GuideItem {
+  id          String    @id @default(uuid())
+  categoryId  String    @map("category_id")
+  title       String
+  phone       String?
+  address     String?
+  latitude    Float?
+  longitude   Float?
+  isCenter    Boolean   @default(false) @map("is_center")
+  isBusy      Boolean   @default(false) @map("is_busy") // For taxi drivers
+  rank        Int       @default(0)
+  
+  // Relations
+  category    GuideCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  ownerId     String?   @map("owner_id") // For taxi drivers
+  owner       User?     @relation("TaxiDriver", fields: [ownerId], references: [id], onDelete: SetNull)
+  taxiRequests TaxiRequest[] @relation("TaxiRequests") // Taxi requests for this taxi driver
+  
+  // Timestamps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  @@index([categoryId])
+  @@index([ownerId])
+  @@index([rank])
+  @@map("guide_items")
+}
+
+// ============================================
+// TAXI SYSTEM
+// ============================================
+
+model TaxiRequest {
+  id              String            @id @default(uuid())
+  passengerPhone  String?           @map("passenger_phone")
+  pickupLatitude  Float?            @map("pickup_latitude")
+  pickupLongitude Float?            @map("pickup_longitude")
+  status          TaxiRequestStatus @default(pending)
+  
+  // Relations
+  userId          String?           @map("user_id")
+  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  taxiId          String?           @map("taxi_id") // Reference to GuideItem (taxi)
+  taxi            GuideItem?        @relation("TaxiRequests", fields: [taxiId], references: [id], onDelete: SetNull)
+  
+  // Timestamps
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  
+  @@index([userId])
+  @@index([taxiId])
+  @@index([status])
+  @@map("taxi_requests")
+}
+
+// ============================================
+// TRANSPORT SYSTEM
+// ============================================
+
+model TransportRoute {
+  id            String    @id @default(uuid())
+  title         String
+  startTime     String    @map("start_time") // TIME format: "HH:mm:ss"
+  endTime       String    @map("end_time")   // TIME format: "HH:mm:ss"
+  frequencyMin  Int       @map("frequency_min")
+  
+  // Relations
+  routeStops    RouteStop[]
+  
+  // Timestamps
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  @@map("transport_routes")
+}
+
+model TransportStop {
+  id        String      @id @default(uuid())
+  name      String
+  latitude  Float
+  longitude Float
+  
+  // Relations
+  routeStops RouteStop[]
+  
+  // Timestamps
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  
+  @@map("transport_stops")
+}
+
+model RouteStop {
+  id                String          @id @default(uuid())
+  routeId           String          @map("route_id")
+  stopId            String          @map("stop_id")
+  minutesFromStart  Int             @map("minutes_from_start")
+  
+  // Relations
+  route             TransportRoute  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stop              TransportStop   @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt         DateTime        @default(now()) @map("created_at")
+  
+  @@unique([routeId, stopId])
+  @@index([routeId])
+  @@index([stopId])
+  @@map("route_stops")
+}
+
+model IntercityTrip {
+  id              String    @id @default(uuid())
+  destination     String
+  companyName     String?   @map("company_name")
+  departureTimes  String[]  @map("departure_times") // Array of TIME strings
+  price           String?
+  
+  // Timestamps
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  @@map("intercity_trips")
+}
+
+// ============================================
+// INFORMATION SERVICES
+// ============================================
+
+model Pharmacy {
+  id          String    @id @default(uuid())
+  name        String
+  phone       String?
+  address     String?
+  region      String
+  latitude    Float?
+  longitude   Float?
+  dutyDate    DateTime  @map("duty_date") // DATE format
+  
+  // Timestamps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  
+  @@index([dutyDate])
+  @@index([region])
+  @@map("pharmacies")
+}
+
+model DeathNotice {
+  id                String    @id @default(uuid())
+  firstName         String    @map("first_name")
+  lastName          String    @map("last_name")
+  deathDate         DateTime  @map("death_date") // DATE format
+  burialPlace       String?   @map("burial_place")
+  burialTime        String?   @map("burial_time") // TIME format: "HH:mm:ss"
+  condolenceAddress String?   @map("condolence_address")
+  latitude          Float?
+  longitude         Float?
+  imageUrl           String?   @map("image_url")
+  
+  // Timestamps
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  
+  @@index([deathDate])
+  @@index([createdAt])
+  @@map("death_notices")
+}
+
+model Announcement {
+  id                  String            @id @default(uuid())
+  title               String
+  description         String
+  type                AnnouncementType
+  institutionName     String?           @map("institution_name")
+  imageUrl            String?           @map("image_url")
+  fileUrl             String?           @map("file_url")
+  targetNeighborhoods String[]          @map("target_neighborhoods") @default([])
+  
+  // Timestamps
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  
+  @@index([type])
+  @@index([createdAt])
+  @@map("announcements")
+}
+
+model Event {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  eventDate   DateTime  @map("event_date")
+  locationName String?   @map("location_name")
+  latitude    Float?
+  longitude   Float?
+  imageUrl    String?   @map("image_url")
+  isActive    Boolean   @default(true) @map("is_active")
+  
+  // Timestamps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  @@index([eventDate])
+  @@index([isActive])
+  @@map("events")
+}
+
+model Campaign {
+  id            String    @id @default(uuid())
+  title         String
+  businessName  String    @map("business_name")
+  description   String?
+  discountCode  String?   @map("discount_code")
+  imageUrls     String[]  @map("image_urls") @default([])
+  
+  // Timestamps
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  @@index([createdAt])
+  @@map("campaigns")
+}
+
+model Place {
+  id            String    @id @default(uuid())
+  title         String
+  description   String?
+  distanceText  String?   @map("distance_text")
+  distanceKm    Float?    @map("distance_km")
+  latitude      Float?
+  longitude     Float?
+  imageUrls     String[]  @map("image_urls") @default([])
+  
+  // Timestamps
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  @@index([distanceKm])
+  @@index([createdAt])
+  @@map("places")
+}
+

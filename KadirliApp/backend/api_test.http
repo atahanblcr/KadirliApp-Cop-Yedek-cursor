@@ -1,0 +1,33 @@
+### 0. ADIM: Yeni Kod İste (Bunu Çalıştırınca Terminale Bak)
+# Önce bu isteği gönder. Sonra terminale bakıp sarı/beyaz yazan kodu al.
+POST http://localhost:3000/api/auth/otp
+Content-Type: application/json
+
+{
+    "phone": "+905551234567"
+}
+
+### 1. ADIM: Giriş Yap ve Token Al
+# 0. Adımda terminalde çıkan kodu buradaki "code" kısmına yaz.
+POST http://localhost:3000/api/auth/verify
+Content-Type: application/json
+
+{
+    "phone": "+905551234567",
+    "code": "430982" 
+}
+
+### 2. ADIM: İlan Ekle (Token İle)
+# 1. Adımdan gelen token'ı kopyala ve aşağıya yapıştır.
+POST http://localhost:3000/api/ads
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI5OWVkNGZiOC04NTQyLTRjMjktYmUzYi05NzBkMTViYWRmMDAiLCJwaG9uZSI6IjkwNTU1MTIzNDU2NyIsImlhdCI6MTc2NzI3ODczMCwiZXhwIjoxNzk4ODE0NzMwfQ.BajWIMsnEmun0SzOB5ON_JBMDCiwnzF_tf-k21M7ekE
+
+{
+  "title": "Satılık iPhone 15",
+  "description": "Kadirli merkezde, temiz.",
+  "type": "second_hand",
+  "price": "45.000 TL",
+  "contactInfo": "0555 123 45 67",
+  "imageUrls": ["https://google.com/resim.jpg"]
+}
